@@ -36,45 +36,18 @@ namespace PeopleAPI.Controllers
             JsonResult table = QueryDB(query, null);
             return table;
         }
-       
+
         [HttpPost]
         public JsonResult Post(Person per)
         {
             string validResult = isDataValidated(per);
-            if (validResult!= "Valid")
+            if (validResult != "Valid")
             {
                 Response.StatusCode = StatusCodes.Status400BadRequest;
-                return new JsonResult("Bad Request - "+validResult);
+                return new JsonResult("Bad Request - " + validResult);
             }
-            
-            string fields = @"(Id, Name,Email";
-            string values = @"values(@Id, @Name, @Email";
-            List<(string, string)> sqlParams = new List<(string, string)>();
-            sqlParams.Add(("@Id", per.Id.ToString()));
-            sqlParams.Add(("@Name", per.Name));
-            sqlParams.Add(("@Email", per.Email));
-
-            if (per.DateOfBirth != null)
-            {
-                fields += @", DateOfBirth";
-                values += @", @DateOfBirth";
-                sqlParams.Add(("@DateOfBirth", per.DateOfBirth));
-            }
-            if (per.Sex != null)
-            {
-                fields += @", Sex";
-                values += @", @Sex";
-                sqlParams.Add(("@Sex", per.Sex));
-            }
-            if(per.Phone != null)
-            {
-                fields += @", Phone";
-                values += @", @Phone";
-                sqlParams.Add(("@Phone", per.Phone.ToString()));
-            }
-            string query = @"insert into dbo.Person " 
-                            + fields + @") " 
-                            + values + @")";
+            string query = buildPostQuery(per);
+            List<(string, string)> sqlParams = buildParams(per);
 
             var result = QueryDB(query, sqlParams);
             if (Response.StatusCode == 500)
@@ -83,7 +56,6 @@ namespace PeopleAPI.Controllers
             }
             return new JsonResult("Added Successfuly");
         }
-
 
         [HttpPut]
         public JsonResult Put(Person per)
@@ -94,22 +66,9 @@ namespace PeopleAPI.Controllers
                 Response.StatusCode = StatusCodes.Status400BadRequest;
                 return new JsonResult("Bad Request - " + validResult);
             }
-            string query = @"
-                update dbo.Person
-                set Name = @Name,
-                Email=@Email,
-                DateOfBirth=@DateOfBirth,
-                Sex=@Sex,
-                Phone=@Phone
-                where Id=@Id
-            ";
-            List<(string, string)> sqlParams = new List<(string, string)>();
-            sqlParams.Add(("@Id", per.Id.ToString()));
-            sqlParams.Add(("@Name", per.Name));
-            sqlParams.Add(("@Email", per.Email));
-            sqlParams.Add(("@DateOfBirth", per.DateOfBirth));
-            sqlParams.Add(("@Sex", per.Sex.ToString()));
-            sqlParams.Add(("@Phone", per.Phone.ToString()));
+            string query = buildPutQuery(per);
+
+            List<(string, string)> sqlParams = buildParams(per);
             var result = QueryDB(query, sqlParams);
             if (Response.StatusCode == 500)
             {
@@ -139,6 +98,61 @@ namespace PeopleAPI.Controllers
         // private functions //
         ///////////////////////
 
+        private string buildPostQuery(Person per)
+        {
+            string fields = @"(Id, Name,Email";
+            string values = @"values(@Id, @Name, @Email";
+            if (per.DateOfBirth != null)
+            {
+                fields += @", DateOfBirth";
+                values += @", @DateOfBirth";
+            }
+            if (per.Sex != null)
+            {
+                fields += @", Sex";
+                values += @", @Sex";
+            }
+            if (per.Phone != null)
+            {
+                fields += @", Phone";
+                values += @", @Phone";
+            }
+            return @"insert into dbo.Person "
+                + fields + @") "
+                + values + @")";
+        }
+        private string buildPutQuery(Person per)
+        {
+            string query = @"
+                update dbo.Person
+                set Name = @Name,
+                Email=@Email";
+            if (per.DateOfBirth != null) { query += @",DateOfBirth=@DateOfBirth"; };
+            if (per.Sex!= null) { query += @",Sex=@Sex"; };
+            if (per.Phone != null) { query += @",Phone=@Phone"; };
+            query += " where Id = @Id";
+            return query;
+        }
+        private List<(string, string)> buildParams(Person per)
+        {
+            List<(string, string)> sqlParams = new List<(string, string)>();
+            sqlParams.Add(("@Id", per.Id.ToString()));
+            sqlParams.Add(("@Name", per.Name));
+            sqlParams.Add(("@Email", per.Email));
+            if (per.DateOfBirth != null)
+            {
+                sqlParams.Add(("@DateOfBirth", per.DateOfBirth));
+            }
+            if (per.Sex != null)
+            {
+                sqlParams.Add(("@Sex", per.Sex));
+            }
+            if (per.Phone != null)
+            {
+                sqlParams.Add(("@Phone", per.Phone.ToString()));
+            }
+            return sqlParams;
+        }
         private JsonResult QueryDB(string query, List<(string, string)> sqlParams)
         {
             DataTable table = new DataTable();
@@ -170,6 +184,8 @@ namespace PeopleAPI.Controllers
             }
             
         }
+
+        
 
         private string isDataValidated(Person per)
         {
