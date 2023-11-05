@@ -8,6 +8,7 @@ using System.Runtime.ConstrainedExecution;
 using System.Text.RegularExpressions;
 using System.Net.Mail;
 using System.Diagnostics.Eventing.Reader;
+using System.Xml.Linq;
 
 namespace PeopleAPI.Controllers
 {
@@ -37,26 +38,44 @@ namespace PeopleAPI.Controllers
         }
        
         [HttpPost]
-        public JsonResult Post(Person person)
+        public JsonResult Post(Person per)
         {
-            string validResult = isDataValidated(person);
+            string validResult = isDataValidated(per);
             if (validResult!= "Valid")
             {
                 Response.StatusCode = StatusCodes.Status400BadRequest;
                 return new JsonResult("Bad Request - "+validResult);
             }
-            string query = @"
-                insert into dbo.Person
-                (Id, Name,Email, DateOfBirth, Sex, Phone)
-                values(@Id, @Name, @Email, @DateOfBirth, @Sex, @Phone)
-            ";
+            
+            string fields = @"(Id, Name,Email";
+            string values = @"values(@Id, @Name, @Email";
             List<(string, string)> sqlParams = new List<(string, string)>();
-            sqlParams.Add(("@Id", person.Id.ToString()));
-            sqlParams.Add(("@Name", person.Name));
-            sqlParams.Add(("@Email", person.Email));
-            sqlParams.Add(("@DateOfBirth", person.DateOfBirth));
-            sqlParams.Add(("@Sex", person.Sex.ToString()));
-            sqlParams.Add(("@Phone", person.Phone.ToString()));
+            sqlParams.Add(("@Id", per.Id.ToString()));
+            sqlParams.Add(("@Name", per.Name));
+            sqlParams.Add(("@Email", per.Email));
+
+            if (per.DateOfBirth != null)
+            {
+                fields += @", DateOfBirth";
+                values += @", @DateOfBirth";
+                sqlParams.Add(("@DateOfBirth", per.DateOfBirth));
+            }
+            if (per.Sex != null)
+            {
+                fields += @", Sex";
+                values += @", @Sex";
+                sqlParams.Add(("@Sex", per.Sex));
+            }
+            if(per.Phone != null)
+            {
+                fields += @", Phone";
+                values += @", @Phone";
+                sqlParams.Add(("@Phone", per.Phone.ToString()));
+            }
+            string query = @"insert into dbo.Person " 
+                            + fields + @") " 
+                            + values + @")";
+
             var result = QueryDB(query, sqlParams);
             if (Response.StatusCode == 500)
             {
@@ -156,19 +175,30 @@ namespace PeopleAPI.Controllers
         {
             try
             {
-                var addr = new MailAddress(per.Email).Address;
+                if (per.Email == "")
+                    per.Email = null;
+                if (per.Email != null)
+                {
+                    var addr = new MailAddress(per.Email).Address;
+                }
             }
             catch(FormatException e)
             {
                 return e.Message;
             }
             string datePattern = @"^\d{4}-\d{2}-\d{2}$";
-            
-            string Sex = per.Sex.ToString();
-            if (!Regex.IsMatch(per.DateOfBirth, datePattern))
-                return "date not valid, it should be yyyy-mm-dd";
-            if (!Regex.IsMatch(Sex.ToLower(), @"(male|female|other|0|1|2)"))
-                return "Sex can be 0 (Male), 1 (Female) or 2 (Other)";
+
+            if (per.DateOfBirth != null)
+            {
+                if (!Regex.IsMatch(per.DateOfBirth, datePattern))
+                    return "date not valid, it should be yyyy-mm-dd";
+            }
+            string Sex = per.Sex;
+            if (Sex != null)
+            {
+                if (!Regex.IsMatch(Sex.ToLower(), @"(male|female|other)"))
+                    return "Sex can be Male, Female or Other";
+            }
             return "Valid";
         }
     }
